@@ -1,0 +1,1 @@
+This folder contains the research document and a list of curated venues and some leads that I have genereated. Our goal is to build an automation of pipelines to generate leads willing to sell large quanities of chairs to me.
