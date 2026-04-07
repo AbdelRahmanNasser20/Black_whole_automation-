@@ -1,0 +1,16 @@
+import { Module } from '@nestjs/common';
+
+import { PlatesController } from './plates.controller';
+import { PlatesService } from './plates.service';
+import { AbuseDetectionService } from './abuse-detection.service';
+import { TrustScoreService } from './trust-score.service';
+import { VehiclesModule } from '@modules/vehicles/vehicles.module';
+import { RateLimitService } from '@common/guards/rate-limit.service';
+
+@Module({
+  imports: [VehiclesModule],
+  controllers: [PlatesController],
+  providers: [PlatesService, AbuseDetectionService, TrustScoreService, RateLimitService],
+  exports: [PlatesService, AbuseDetectionService, TrustScoreService],
+})
+export class PlatesModule {}
