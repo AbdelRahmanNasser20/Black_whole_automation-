@@ -6,6 +6,9 @@ export interface FilterResult {
   blocked: boolean;
 }
 
+// IMPORTANT: do NOT use /g with .test() — `lastIndex` is shared state
+// across calls and will produce intermittent false negatives. We do the
+// replace and compare lengths instead of testing first.
 const PHONE_REGEX = /(\+?\d[\d\s().-]{6,}\d)/g;
 const EMAIL_REGEX = /[\w.+-]+@[\w-]+\.[\w.-]+/g;
 const URL_REGEX = /\b((https?:\/\/)?([a-z0-9-]+\.)+[a-z]{2,})\b/gi;
@@ -46,17 +49,30 @@ export class ContentFilterService {
       }
     }
 
-    if (PHONE_REGEX.test(cleaned)) {
-      tags.push('pii_phone');
-      cleaned = cleaned.replace(PHONE_REGEX, '[redacted]');
+    // String#replace with a /g regex creates a fresh iterator on each
+    // call, so it's safe to call repeatedly. Detect a match by comparing
+    // before/after instead of running .test() first (which would mutate
+    // the regex `lastIndex`).
+    {
+      const next = cleaned.replace(PHONE_REGEX, '[redacted]');
+      if (next !== cleaned) {
+        tags.push('pii_phone');
+        cleaned = next;
+      }
     }
-    if (EMAIL_REGEX.test(cleaned)) {
-      tags.push('pii_email');
-      cleaned = cleaned.replace(EMAIL_REGEX, '[redacted]');
+    {
+      const next = cleaned.replace(EMAIL_REGEX, '[redacted]');
+      if (next !== cleaned) {
+        tags.push('pii_email');
+        cleaned = next;
+      }
     }
-    if (URL_REGEX.test(cleaned)) {
-      tags.push('contains_url');
-      cleaned = cleaned.replace(URL_REGEX, '[link]');
+    {
+      const next = cleaned.replace(URL_REGEX, '[link]');
+      if (next !== cleaned) {
+        tags.push('contains_url');
+        cleaned = next;
+      }
     }
 
     if (cleaned.length > 280) cleaned = cleaned.slice(0, 280);

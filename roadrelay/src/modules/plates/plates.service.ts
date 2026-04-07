@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -60,6 +61,18 @@ export class PlatesService {
     userAgent?: string;
     geoRegion?: string;
   }): Promise<LookupResult> {
+    // Validate the plate up-front so we return 400 (not 500) for garbage
+    // input. The DTO already trims/uppercases, but normalisation can
+    // still reject characters that slipped past length-only checks.
+    let canonicalKey: string;
+    try {
+      canonicalKey = plateLookupKey(args.state, args.plate);
+    } catch (err) {
+      throw new BadRequestException(`invalid_plate: ${(err as Error).message}`);
+    }
+
+    const queryHash = this.pii.hash(canonicalKey);
+
     const gate = this.trust.gateFor(args.actor.trustScore);
     if (!gate.canSearchPlates) {
       // We deliberately return a fake "not found" result for shadowbanned
@@ -68,7 +81,7 @@ export class PlatesService {
         userId: args.actor.id,
         deviceId: args.actor.deviceId,
         state: args.state,
-        plate: args.plate,
+        queryHash,
         matched: false,
         matchedVehicleId: null,
         ip: args.ip,
@@ -79,8 +92,6 @@ export class PlatesService {
       return { matched: false, lookupId, abuseScore: 100 };
     }
 
-    const queryHash = this.pii.hash(plateLookupKey(args.state, args.plate));
-
     // Score BEFORE running the lookup so we can short-circuit obvious abuse.
     const signal = await this.abuse.scoreLookup({
       userId: args.actor.id,
@@ -90,11 +101,11 @@ export class PlatesService {
     if (signal.score >= 70) {
       // Hard block; trust score gets adjusted by the background job that
       // analyzes the abuse signal log.
-      const lookupId = await this.logSearch({
+      await this.logSearch({
         userId: args.actor.id,
         deviceId: args.actor.deviceId,
         state: args.state,
-        plate: args.plate,
+        queryHash,
         matched: false,
         matchedVehicleId: null,
         ip: args.ip,
@@ -111,7 +122,7 @@ export class PlatesService {
       userId: args.actor.id,
       deviceId: args.actor.deviceId,
       state: args.state,
-      plate: args.plate,
+      queryHash,
       matched: !!vehicle,
       matchedVehicleId: vehicle?.id ?? null,
       ip: args.ip,
@@ -152,7 +163,7 @@ export class PlatesService {
     userId: string;
     deviceId?: string;
     state: string;
-    plate: string;
+    queryHash: Buffer;
     matched: boolean;
     matchedVehicleId: string | null;
     ip?: string;
@@ -160,7 +171,6 @@ export class PlatesService {
     geoRegion?: string;
     abuseScore: number;
   }): Promise<string> {
-    const queryHash = this.pii.hash(plateLookupKey(args.state, args.plate));
     const { rows } = await this.pool.query<{ id: string }>(
       `INSERT INTO plate_search_logs
          (user_id, device_id, plate_query_hash, state_code, matched, matched_vehicle_id, ip, user_agent, geo_region, abuse_score)
@@ -169,7 +179,7 @@ export class PlatesService {
       [
         args.userId,
         args.deviceId ?? null,
-        queryHash,
+        args.queryHash,
         args.state,
         args.matched,
         args.matchedVehicleId,

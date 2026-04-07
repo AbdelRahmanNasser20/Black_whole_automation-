@@ -12,7 +12,6 @@ import { NotificationService } from '@infrastructure/notifications/notification.
 import { UnitOfWork } from '@infrastructure/database/unit-of-work';
 
 import { TrustScoreService } from '@modules/plates/trust-score.service';
-import { VehiclesService } from '@modules/vehicles/vehicles.service';
 import { RelaySessionsService } from '@modules/relay-sessions/relay-sessions.service';
 import { SafetyService } from '@modules/safety/safety.service';
 import { AuditService } from '@modules/audit/audit.service';
@@ -37,7 +36,6 @@ export class ContactRequestsService {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly uow: UnitOfWork,
-    private readonly vehicles: VehiclesService,
     private readonly trust: TrustScoreService,
     private readonly safety: SafetyService,
     private readonly relay: RelaySessionsService,
@@ -100,7 +98,8 @@ export class ContactRequestsService {
       throw new NotFoundException('vehicle_not_found');
     }
 
-    // Cooldown: how many of sender's last 5 requests were declined?
+    // Cooldown: 3+ declines in the past 7 days locks the sender out of
+    // creating new requests until older declines age out.
     const { rows: declineRows } = await this.pool.query<{ declines: number }>(
       `SELECT COUNT(*)::int AS declines
          FROM contact_requests

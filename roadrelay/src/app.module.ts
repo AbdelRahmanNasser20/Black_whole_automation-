@@ -15,6 +15,8 @@ import { NotificationsModule } from '@infrastructure/notifications/notifications
 import { RelayProviderModule } from '@infrastructure/relay/relay-provider.module';
 import { LoggingModule } from '@infrastructure/logging/logging.module';
 
+import { CommonSecurityModule } from '@common/common-security.module';
+
 import { AuthModule } from '@modules/auth/auth.module';
 import { UsersModule } from '@modules/users/users.module';
 import { VehiclesModule } from '@modules/vehicles/vehicles.module';
@@ -42,6 +44,7 @@ import { JobsModule } from './jobs/jobs.module';
     NotificationsModule,
     RelayProviderModule,
 
+    CommonSecurityModule,
     AuditModule,
     AuthModule,
     UsersModule,

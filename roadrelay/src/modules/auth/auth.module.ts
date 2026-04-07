@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 
@@ -8,9 +8,9 @@ import { OtpService } from './otp.service';
 import { TokenService } from './token.service';
 import { UsersModule } from '@modules/users/users.module';
 import { AuditModule } from '@modules/audit/audit.module';
-import { RateLimitService } from '@common/guards/rate-limit.service';
 import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
 
+@Global()
 @Module({
   imports: [
     ConfigModule,
@@ -25,7 +25,7 @@ import { JwtAuthGuard } from '@common/guards/jwt-auth.guard';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, OtpService, TokenService, RateLimitService, JwtAuthGuard],
+  providers: [AuthService, OtpService, TokenService, JwtAuthGuard],
   exports: [AuthService, JwtAuthGuard, JwtModule],
 })
 export class AuthModule {}

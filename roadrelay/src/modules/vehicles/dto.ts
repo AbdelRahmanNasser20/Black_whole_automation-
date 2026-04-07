@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import {
   IsEnum,
   IsInt,
@@ -9,11 +10,16 @@ import {
   Min,
 } from 'class-validator';
 
+const upper = ({ value }: { value: unknown }) =>
+  typeof value === 'string' ? value.trim().toUpperCase() : value;
+
 export class AddVehicleDto {
+  @Transform(upper)
   @IsString()
   @Length(1, 12)
   plate!: string;
 
+  @Transform(upper)
   @Matches(/^[A-Z]{2}$/)
   state!: string;
 
@@ -78,6 +84,24 @@ export class RequestUploadUrlDto {
 }
 
 export class CompleteUploadDto {
+  @IsEnum([
+    'registration_doc',
+    'insurance_card',
+    'vehicle_photo_front',
+    'vehicle_photo_rear',
+    'vehicle_photo_vin',
+    'driver_license',
+    'other',
+  ])
+  kind!:
+    | 'registration_doc'
+    | 'insurance_card'
+    | 'vehicle_photo_front'
+    | 'vehicle_photo_rear'
+    | 'vehicle_photo_vin'
+    | 'driver_license'
+    | 'other';
+
   @IsString()
   storageKey!: string;
 

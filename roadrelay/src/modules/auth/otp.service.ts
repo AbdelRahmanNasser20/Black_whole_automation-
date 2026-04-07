@@ -27,11 +27,27 @@ export interface OtpIssueResult {
 @Injectable()
 export class OtpService {
   private readonly logger = new Logger(OtpService.name);
+  /**
+   * Precomputed dummy argon2 hash used to balance the timing of the
+   * "no-such-challenge" branch in `verify`. Computed lazily on first
+   * use so that startup remains fast and so we don't need argon2 to
+   * be initialised at module construction time.
+   */
+  private dummyHashPromise: Promise<string> | null = null;
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly config: ConfigService,
   ) {}
+
+  private getDummyHash(): Promise<string> {
+    if (!this.dummyHashPromise) {
+      this.dummyHashPromise = argon2.hash('dummy-otp-for-timing', {
+        type: argon2.argon2id,
+      });
+    }
+    return this.dummyHashPromise;
+  }
 
   async issue(phoneNumberHash: Buffer, purpose: 'signup' | 'login'): Promise<OtpIssueResult> {
     const length = this.config.get<number>('auth.otp.length')!;
@@ -41,6 +57,17 @@ export class OtpService {
     const codeHash = await argon2.hash(code, { type: argon2.argon2id });
 
     const expiresAt = new Date(Date.now() + ttl * 1000);
+
+    // Invalidate any prior unconsumed OTPs for this phone before issuing
+    // a new one. Without this, two OTPs can be valid concurrently which
+    // makes spray attacks marginally cheaper and SMS pumping easier.
+    await this.pool.query(
+      `UPDATE otp_challenges
+          SET consumed_at = NOW()
+        WHERE phone_number_hash = $1
+          AND consumed_at IS NULL`,
+      [phoneNumberHash],
+    );
 
     const { rows } = await this.pool.query<{ id: string }>(
       `INSERT INTO otp_challenges
@@ -82,11 +109,10 @@ export class OtpService {
     );
 
     if (rows.length === 0) {
-      // Run a dummy verify so timing leaks nothing.
-      await argon2.verify(
-        '$argon2id$v=19$m=65536,t=3,p=4$ZHVtbXlkdW1teQ$AbCdEfGhIjKlMnOpQrStUv',
-        code,
-      ).catch(() => undefined);
+      // Run a dummy verify against a pre-computed real hash so the
+      // timing of this branch matches a real verify call.
+      const dummy = await this.getDummyHash();
+      await argon2.verify(dummy, code).catch(() => undefined);
       return false;
     }
 

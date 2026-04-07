@@ -42,7 +42,12 @@ export class VehiclesService {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
   async create(input: CreateVehicleInput): Promise<VehicleRow> {
-    const normalized = normalizePlate(input.plate);
+    let normalized: string;
+    try {
+      normalized = normalizePlate(input.plate);
+    } catch (err) {
+      throw new BadRequestException(`invalid_plate: ${(err as Error).message}`);
+    }
     if (!/^[A-Z]{2}$/.test(input.state)) {
       throw new BadRequestException('invalid_state_code');
     }
@@ -112,7 +117,12 @@ export class VehiclesService {
    * registration exists. Used by the plate-lookup feature.
    */
   async findVerifiedByPlate(state: string, plate: string): Promise<VehicleRow | null> {
-    const normalized = normalizePlate(plate);
+    let normalized: string;
+    try {
+      normalized = normalizePlate(plate);
+    } catch (err) {
+      throw new BadRequestException(`invalid_plate: ${(err as Error).message}`);
+    }
     const { rows } = await this.pool.query(
       `SELECT id, user_id, plate_raw, plate_normalized, state_code, country_code,
               make, model, year, color, vin_last_four, status, visibility

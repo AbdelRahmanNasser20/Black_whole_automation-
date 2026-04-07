@@ -78,7 +78,7 @@ export class VehiclesController {
   async registerArtifact(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() dto: CompleteUploadDto & { kind: string },
+    @Body() dto: CompleteUploadDto,
   ) {
     const artifact = await this.verification.registerCompletedUpload(
       user.id,
